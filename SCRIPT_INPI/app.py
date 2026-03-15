@@ -5,8 +5,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import Select
-#import pandas as pd, pyodbc
-#from io import StringIO
+import pandas as pd, pyodbc
+from io import StringIO
 
 #inputs
 nome_marca = input("Digite o nome da MARCA: ")
@@ -94,30 +94,39 @@ try:
     #espera a tabela aparecer
     wait.until(EC.presence_of_element_located((By.XPATH, "//table")))
     
-    #pega todas as linhas da tabela
-    linhas = driver.find_elements(
-        By.XPATH,
-        "//tr[not(.//img[@alt='Marca Arquivada'])]"
+    #pega a tabela
+    html = driver.page_source
+    tabelas = pd.read_html(StringIO(html))
+    
+    df = tabelas[2]
+    df_str = df.astype(str)
+
+    mask = df_str.apply(
+        lambda row: row.str.contains(
+            "Arquivada|Nenhum resultado|AVISO|Dados atualizados|Arquivado|Nulo|Páginas de Resultados",
+            case=False,
+            regex=True
+        ).any(),
+        axis=1
+        )
+    
+    df = df[~mask].reset_index(drop=True)
+
+    df.columns = df.columns.map(str)
+
+    df.columns = (
+        df.columns
+        .str.strip()
+        .str.lower()
+        .str.replace(" ", "_")
+        .str.replace("[^a-z0-9_]", "", regex=True)
     )
 
-    resultados = []
+    #imprime a tabela
+    quantidade = max(len(df) - 1, 0)
+    print(df)
+    print("Quantidade:", quantidade)
 
-    #pula cabeçalho
-    for linha in linhas[1:]:  
-        colunas = linha.find_elements(By.TAG_NAME, "td")
-        if len(colunas) > 0:
-            dados = [coluna.text.strip() for coluna in colunas]
-            resultados.append(dados)
-
-    for r in resultados:
-        print(r)
-
-    #verifica se não encontrou resultados
-    mensagem_sem_resultado = driver.find_elements(
-    By.XPATH,
-    "//*[contains(text(),'Nenhum resultado foi encontrado')]"
-    )   
-    
     #calcula a chance de registro
     # quantidade = max(len(linhas) - 7, 0)
 
